@@ -3,6 +3,7 @@
 import os
 import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db, init_db
@@ -11,6 +12,16 @@ from schemas import MessageCreate, MessageResponse
 from utils import PineconeRAGManager
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 rag_manager = PineconeRAGManager()
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +72,36 @@ async def get_chat(chat_id: int, db: AsyncSession = Depends(get_db)):
             } for msg in messages
         ]
     }
+
+@app.get("/chats")
+async def get_all_chats(db: AsyncSession = Depends(get_db)):
+    # Get all chats with their messages
+    result = await db.execute(
+        select(Chat).order_by(Chat.created_at.desc())
+    )
+    chats = result.scalars().all()
+    
+    chat_list = []
+    for chat in chats:
+        # Get messages for each chat
+        messages_result = await db.execute(
+            select(Message)
+            .where(Message.chat_id == chat.id)
+            .order_by(Message.created_at)
+        )
+        messages = messages_result.scalars().all()
+        
+        chat_list.append({
+            "id": chat.id,
+            "messages": [
+                {
+                    "content": msg.content,
+                    "sender": msg.sender
+                } for msg in messages
+            ]
+        })
+    
+    return chat_list
 
 @app.post("/message")
 async def post_message(message: MessageCreate, db: AsyncSession = Depends(get_db)):
@@ -126,3 +167,4 @@ async def ingest(chat_id: int, file: UploadFile = File(...)):
     finally:
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
+
