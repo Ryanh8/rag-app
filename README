@@ -1,57 +1,78 @@
-# RAG Chatbot with FastAPI and Pinecone
+# RAG Chatbot with FastAPI and Next.js
 
-A RAG (Retrieval-Augmented Generation) chatbot built with FastAPI, SQLAlchemy, and Pinecone for document ingestion and querying.
+A Retrieval-Augmented Generation (RAG) chatbot that allows users to upload documents and chat with an AI about their contents. Built with FastAPI, Next.js, SQLAlchemy, and Pinecone.
+
+## Features
+
+- 📁 Document upload support (PDF, DOCX, TXT)
+- 💬 Real-time chat interface
+- 🔍 RAG-powered responses using Pinecone
+- 📱 Responsive design
+- 🗄️ Chat history persistence
 
 ## Prerequisites
 
-- Python 3.11+
-- Docker and Docker Compose (optional)
+### Backend Requirements
+- Python 3.11
 - Supabase Database
 - Pinecone Account
 - OpenAI API Key
 
+### Frontend Requirements
+- Node.js 18+
+- npm or yarn
+
 ## Environment Setup
 
-1. Create a `.env` file in the root directory with the following variables:
+1. Clone the repository:
+
+bash
+git clone 
+cd rag-chatbot
+
+2. Create a `.env` file in the root directory with the following variables:
 
 ```
+DATABASE_URL=your_supabase_postgres_url
+OPENAI_API_KEY=your_openai_api_key
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENVIRONMENT=your_pinecone_environment
+PINECONE_INDEX_NAME=your_index_name
 
-## Running Locally
+## Backend Setup
 
 1. Create and activate a virtual environment:
 
 bash
 python -m venv venv
-source venv/bin/activate # On Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-
-```
-
-2. Install dependencies:
+2. Install backend dependencies:
 
 bash
 pip install -r requirements.txt
 
-3. Test database connection:
-```
+3. Test the database connection:
 
 bash
 python test_connection.py
 
-4. Run the application:
+4. Start the FastAPI server:
 
 bash
 uvicorn main:app --reload
 
+The backend API will be available at `http://localhost:8000`
 
-```
+## Frontend Setup
 
-The API will be available at `http://localhost:8000`
-
-## Running with Docker
-
-1. Build and run the container:
+1. Navigate to the frontend directory:
 
 bash
-docker-compose up --build
+cd frontend
+
+2. Install frontend dependencies:
+
+bash
+npm install or yarn install
 
