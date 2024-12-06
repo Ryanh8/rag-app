@@ -1,0 +1,57 @@
+# RAG Chatbot with FastAPI and Pinecone
+
+A RAG (Retrieval-Augmented Generation) chatbot built with FastAPI, SQLAlchemy, and Pinecone for document ingestion and querying.
+
+## Prerequisites
+
+- Python 3.11+
+- Docker and Docker Compose (optional)
+- Supabase Database
+- Pinecone Account
+- OpenAI API Key
+
+## Environment Setup
+
+1. Create a `.env` file in the root directory with the following variables:
+
+```
+
+## Running Locally
+
+1. Create and activate a virtual environment:
+
+bash
+python -m venv venv
+source venv/bin/activate # On Windows: venv\Scripts\activate
+
+
+```
+
+2. Install dependencies:
+
+bash
+pip install -r requirements.txt
+
+3. Test database connection:
+```
+
+bash
+python test_connection.py
+
+4. Run the application:
+
+bash
+uvicorn main:app --reload
+
+
+```
+
+The API will be available at `http://localhost:8000`
+
+## Running with Docker
+
+1. Build and run the container:
+
+bash
+docker-compose up --build
+
