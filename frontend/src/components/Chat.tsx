@@ -19,6 +19,7 @@ export default function Chat({ chatId }: ChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function Chat({ chatId }: ChatProps) {
     if ((!input.trim() && !selectedFile) || isLoading) return;
 
     setIsLoading(true);
+    setIsTyping(true);
 
     try {
       if (selectedFile) {
@@ -64,6 +66,7 @@ export default function Chat({ chatId }: ChatProps) {
           content: `Uploading file: "${selectedFile.name}"`,
           sender: 'user'
         }]);
+        setInput(''); // Clear input immediately
 
         // Handle file upload
         await chatQueries.uploadFile(selectedFile, chatId);
@@ -81,6 +84,7 @@ export default function Chat({ chatId }: ChatProps) {
           content: userMessage, 
           sender: 'user' 
         }]);
+        setInput(''); // Clear input immediately
 
         // Then handle the response
         const data = await chatQueries.sendMessage(chatId, userMessage);
@@ -101,6 +105,7 @@ export default function Chat({ chatId }: ChatProps) {
       }]);
     } finally {
       setIsLoading(false);
+      setIsTyping(false);
       setInput('');
       setSelectedFile(null);
     }
@@ -127,6 +132,23 @@ export default function Chat({ chatId }: ChatProps) {
             </div>
           </div>
         ))}
+        
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="bg-gray-700 text-white rounded-lg p-4 max-w-[80%]">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce" 
+                     style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce" 
+                     style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce" 
+                     style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
