@@ -26,7 +26,6 @@ A Retrieval-Augmented Generation (RAG) chatbot that allows users to upload docum
 
 1. Clone the repository:
 
-bash
 git clone 
 cd rag-chatbot
 
@@ -37,32 +36,34 @@ DATABASE_URL=your_supabase_postgres_url
 OPENAI_API_KEY=your_openai_api_key
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_ENVIRONMENT=your_pinecone_environment
-PINECONE_INDEX_NAME=your_index_name
+ENVIRONMENT= (either docker or local)
 
 ## Backend Setup
 
 1. Create and activate a virtual environment:
 
-bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 2. Install backend dependencies:
 
-bash
 pip install -r requirements.txt
 
 3. Test the database connection:
 
-bash
 python test_connection.py
 
 4. Start the FastAPI server:
 
-bash
 uvicorn main:app --reload
 
-The backend API will be available at `http://localhost:8000`
+The backend API will be available at `http://localhost:8000` or `http://0.0.0.0:8000` if you are using Docker.
+
+## Backend Setup with Docker
+
+1. Build the Docker image:
+
+docker-compose up --build
 
 ## Frontend Setup
 
@@ -73,6 +74,14 @@ cd frontend
 
 2. Install frontend dependencies:
 
-bash
 npm install or yarn install
 
+3. Build the frontend:
+
+npm run build or yarn build
+
+4. Start the Next.js development server:
+
+npm run start or yarn start
+
+The frontend will be available at `http://localhost:3000` 

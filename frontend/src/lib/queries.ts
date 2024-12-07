@@ -1,4 +1,8 @@
-const API_URL = 'http://localhost:8000';
+import { getApiUrl } from "../../config";
+
+const API_URL = getApiUrl();
+
+console.log(API_URL);
 
 export const chatQueries = {
   createChat: async () => {
