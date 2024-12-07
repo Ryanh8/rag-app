@@ -34,7 +34,7 @@ cd rag-chatbot
 2. Create a `.env` file in the root directory with the following variables:
 
 ```
-SUPABASE_DB=your_supabase_postgres_url (make sure to add +asyncpg example: postgresql+asyncpg://postgres.drgbvseavdofyjiskizr:verycoolproject12310@aws-0-us-east-1.pooler.supabase.com:5432/postgres)
+SUPABASE_DB=your_supabase_postgres_url (make sure to add +asyncpg example: postgresql+asyncpg://postgres.asdasdasdad:asdasdasdsd@aws-0-us-east-1.pooler.supabase.com:5432/postgres)
 OPENAI_API_KEY=your_openai_api_key
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_ENVIRONMENT=your_pinecone_environment
