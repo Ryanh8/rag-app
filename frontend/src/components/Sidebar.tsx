@@ -45,10 +45,10 @@ export default function Sidebar({ currentChatId, onChatSelect, onNewChat }: Side
   };
 
   return (
-    <div className="w-64 bg-gray-900 h-screen flex flex-col">
+    <div className="w-64 bg-gray-900 h-screen flex flex-col p-2">
       <button
         onClick={onNewChat}
-        className="flex items-center gap-2 p-4 text-white hover:bg-gray-800 w-full border border-gray-700 m-2 rounded-lg"
+        className="flex items-center gap-2 p-4 text-white hover:bg-gray-800 w-full border border-gray-700 rounded-lg mb-2"
       >
         <MessageSquarePlus size={20} />
         New Chat
@@ -66,7 +66,7 @@ export default function Sidebar({ currentChatId, onChatSelect, onNewChat }: Side
               onClick={() => onChatSelect(chat.id)}
               className={`p-4 w-full text-left hover:bg-gray-800 
                 ${chat.id === currentChatId ? 'bg-gray-800' : ''} 
-                text-white truncate border-b border-gray-800`}
+                text-white truncate border-b border-gray-700`}
             >
               {getChatPreview(chat)}
             </button>
