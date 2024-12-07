@@ -17,6 +17,7 @@ import logging
 from llama_index.readers import download_loader
 from pinecone import (ServerlessSpec, Pinecone)
 import time
+import asyncio
 load_dotenv()
 
 class PineconeRAGManager:
@@ -152,6 +153,10 @@ class PineconeRAGManager:
                 )
 
             self.logger.info(f"Successfully ingested document for chat {chat_id}")
+            
+            # Add 5 second delay after ingestion
+            await asyncio.sleep(5)
+            
             return index
 
         except Exception as e:

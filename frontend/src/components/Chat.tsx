@@ -18,9 +18,11 @@ interface ChatState {
   messages: Message[];
   isLoading: boolean;
   isUploading: boolean;
+  isIngesting: boolean;
   selectedFile: File | null;
   input: string;
   isTyping: boolean;
+  canQuery: boolean;
 }
 
 export default function Chat({ chatId }: ChatProps) {
@@ -28,9 +30,11 @@ export default function Chat({ chatId }: ChatProps) {
     messages: [],
     isLoading: true,
     isUploading: false,
+    isIngesting: false,
     selectedFile: null,
     input: '',
-    isTyping: false
+    isTyping: false,
+    canQuery: true
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,36 +70,58 @@ export default function Chat({ chatId }: ChatProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { input, selectedFile, isUploading, isLoading } = state;
+    const { input, selectedFile, isUploading, isLoading, isIngesting } = state;
     
-    if ((!input.trim() && !selectedFile) || isUploading || isLoading) return;
+    if ((!input.trim() && !selectedFile) || isUploading || isLoading || isIngesting) return;
 
     try {
       if (selectedFile) {
         setState(prev => ({ 
           ...prev, 
           isUploading: true,
+          isIngesting: true,
+          canQuery: false,
           messages: [...prev.messages, {
             id: Date.now(),
-            content: `Uploading file: "${selectedFile.name}"`,
+            content: `Uploading and processing file: "${selectedFile.name}"`,
             sender: 'user'
           }]
         }));
 
-        await chatQueries.uploadFile(selectedFile, chatId);
+        const response = await chatQueries.uploadFile(selectedFile, chatId);
         
+        if (response.error) {
+          throw new Error(response.error);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         setState(prev => ({
           ...prev,
           messages: [...prev.messages, {
             id: Date.now(),
-            content: `File "${selectedFile.name}" uploaded and processed successfully`,
+            content: `File "${selectedFile.name}" uploaded and processed successfully. You can now chat about its contents.`,
             sender: 'assistant'
           }],
           selectedFile: null,
           input: '',
-          isUploading: false
+          isUploading: false,
+          isIngesting: false,
+          canQuery: true
         }));
       } else {
+        if (!state.canQuery) {
+          setState(prev => ({
+            ...prev,
+            messages: [...prev.messages, {
+              id: Date.now(),
+              content: "Please wait a moment for the file to finish processing before asking questions.",
+              sender: 'assistant'
+            }]
+          }));
+          return;
+        }
+
         const userMessage = input;
         setState(prev => ({
           ...prev,
@@ -127,12 +153,14 @@ export default function Chat({ chatId }: ChatProps) {
         messages: [...prev.messages, {
           id: Date.now(),
           content: selectedFile 
-            ? `Error uploading file "${selectedFile.name}". Please try again.`
+            ? `Error processing file "${selectedFile.name}". Please try again.`
             : "Sorry, there was an error processing your message.",
           sender: 'assistant'
         }],
         isTyping: false,
-        isUploading: false
+        isUploading: false,
+        isIngesting: false,
+        canQuery: true
       }));
     }
   };
@@ -160,7 +188,7 @@ export default function Chat({ chatId }: ChatProps) {
               </div>
             ))}
             
-            {(state.isTyping || state.isUploading) && (
+            {(state.isTyping || state.isUploading || state.isIngesting) && (
               <div className="flex justify-start">
                 <div className="bg-gray-700 text-white rounded-lg p-4 max-w-[80%]">
                   <div className="flex space-x-2">
@@ -182,13 +210,13 @@ export default function Chat({ chatId }: ChatProps) {
             <form onSubmit={handleSubmit} className="flex space-x-4 max-w-3xl mx-auto">
               <label className={`flex items-center justify-center w-10 h-10 rounded-full 
                 bg-gray-800 hover:bg-gray-700 cursor-pointer 
-                ${(state.isUploading || state.isLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                ${(state.isUploading || state.isLoading || state.isIngesting) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input
                   type="file"
                   className="hidden"
                   onChange={handleFileSelect}
                   accept=".txt,.pdf,.docx"
-                  disabled={state.isUploading || state.isLoading}
+                  disabled={state.isUploading || state.isLoading || state.isIngesting}
                 />
                 <Upload className="w-5 h-5 text-gray-400" />
               </label>
@@ -197,10 +225,16 @@ export default function Chat({ chatId }: ChatProps) {
                 type="text"
                 value={state.input}
                 onChange={(e) => setState(prev => ({ ...prev, input: e.target.value }))}
-                placeholder={state.selectedFile ? 'File selected, click send to upload...' : 'Message ChatGPT...'}
+                placeholder={
+                  state.isIngesting 
+                    ? 'Please wait while the file is being processed...' 
+                    : state.selectedFile 
+                      ? 'File selected, click send to upload...' 
+                      : 'Message ChatGPT...'
+                }
                 className="flex-1 bg-gray-800 text-white border-0 rounded-lg px-4 py-2 
                   focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={state.isUploading || state.isLoading}
+                disabled={state.isUploading || state.isLoading || state.isIngesting}
                 readOnly={state.selectedFile !== null}
               />
               
@@ -213,7 +247,7 @@ export default function Chat({ chatId }: ChatProps) {
                     input: '' 
                   }))}
                   className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white"
-                  disabled={state.isUploading || state.isLoading}
+                  disabled={state.isUploading || state.isLoading || state.isIngesting}
                 >
                   Cancel
                 </button>
@@ -221,12 +255,21 @@ export default function Chat({ chatId }: ChatProps) {
 
               <button
                 type="submit"
-                disabled={state.isUploading || state.isLoading || (!state.input.trim() && !state.selectedFile)}
+                disabled={
+                  state.isUploading || 
+                  state.isLoading || 
+                  state.isIngesting || 
+                  (!state.input.trim() && !state.selectedFile)
+                }
                 className="flex items-center justify-center w-10 h-10 rounded-full 
                   bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 
                   disabled:cursor-not-allowed transition-colors"
               >
-                <Send className="w-5 h-5" />
+                {state.isUploading || state.isIngesting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
               </button>
             </form>
           </div>
