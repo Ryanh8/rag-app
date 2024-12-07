@@ -2,6 +2,8 @@
 
 A Retrieval-Augmented Generation (RAG) chatbot that allows users to upload documents and chat with an AI about their contents. Built with FastAPI, Next.js, SQLAlchemy, and Pinecone.
 
+Demo: 
+
 ## Features
 
 - 📁 Document upload support (PDF, DOCX, TXT)
@@ -32,11 +34,12 @@ cd rag-chatbot
 2. Create a `.env` file in the root directory with the following variables:
 
 ```
-DATABASE_URL=your_supabase_postgres_url
+SUPABASE_DB=your_supabase_postgres_url (make sure to add +asyncpg example: postgresql+asyncpg://postgres.drgbvseavdofyjiskizr:verycoolproject12310@aws-0-us-east-1.pooler.supabase.com:5432/postgres)
 OPENAI_API_KEY=your_openai_api_key
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_ENVIRONMENT=your_pinecone_environment
 ENVIRONMENT= (either docker or local)
+
 
 ## Backend Setup
 
@@ -49,9 +52,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 pip install -r requirements.txt
 
-3. Test the database connection:
+3. Create the database tables:
 
-python test_connection.py
+python create_tables.py
 
 4. Start the FastAPI server:
 
