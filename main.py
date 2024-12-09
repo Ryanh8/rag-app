@@ -2,7 +2,7 @@
 
 import os
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,13 +10,15 @@ from database import get_db, init_db
 from models import Chat, Message
 from schemas import MessageCreate, MessageResponse
 from utils import PineconeRAGManager
+import datetime
+import aiofiles
 
 app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Your frontend URL
+    allow_origins=["http://localhost:3000", "https://81f8-2601-647-6900-e88-50fb-b9d9-a560-17a8.ngrok-free.app"],  # Your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,6 +35,12 @@ async def startup_event():
     except Exception as e:
         logging.error(f"❌ Database initialization failed: {str(e)}")
         raise
+
+@app.on_event("startup")
+async def print_routes():
+    logging.info("🛣️ Registered routes:")
+    for route in app.routes:
+        logging.info(f"{route.methods} {route.path}")
 
 @app.post("/chat/new")
 async def create_chat(db: AsyncSession = Depends(get_db)):
@@ -154,10 +162,13 @@ async def post_message(message: MessageCreate, db: AsyncSession = Depends(get_db
 async def ingest(chat_id: int, file: UploadFile = File(...)):
     content = await file.read()
     temp_filename = f"temp_{file.filename}"
+
+    logging.info(f"🚀 Ingesting file: {file.filename}")
     
     try:
-        with open(temp_filename, "wb") as f:
-            f.write(content)
+        # Use async file operations
+        async with aiofiles.open(temp_filename, "wb") as f:
+            await f.write(content)
         
         await rag_manager.ingest_document(temp_filename, chat_id)
         return {"success": True}
@@ -167,4 +178,69 @@ async def ingest(chat_id: int, file: UploadFile = File(...)):
     finally:
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
+
+@app.post("/webhook/notion")
+async def notion_webhook(request: Request):
+    logging.info("⭐ Entering webhook endpoint")
+    try:
+        body = await request.body()
+        logging.info(f"Raw request body: {body}")
+        
+        headers = dict(request.headers)
+        logging.info(f"Request headers: {headers}")
+        
+        payload = await request.json()
+        logging.info(f"Parsed payload: {payload}")
+        
+        # Handle automation events
+        if payload.get("source", {}).get("type") == "automation":
+            page_id = payload.get("data", {}).get("id")
+            if page_id:
+                logging.info(f"🔄 Processing page update for ID: {page_id}")
+                index = await rag_manager.update_notion_page(page_id)
+                return {"success": True, "index_id": str(index.index_id)}
+        
+        # Handle direct page updates
+        if payload.get("type") == "page_updated":
+            page_id = payload.get("page", {}).get("id")
+            if page_id:
+                logging.info(f"🔄 Processing direct page update for ID: {page_id}")
+                await rag_manager.update_notion_page(page_id)
+                return {"success": True}
+        
+        logging.info("⏭️ Skipping non-page event")
+        return {"success": True, "message": "Event type not handled"}
+        
+    except Exception as e:
+        logging.error(f"❌ Webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logging.info(f"🚀 Request received: {request.method} {request.url}")
+    logging.info(f"🔑 Headers: {dict(request.headers)}")
+    try:
+        response = await call_next(request)
+        logging.info(f"✅ Response status: {response.status_code}")
+        return response
+    except Exception as e:
+        logging.error(f"❌ Middleware error: {str(e)}")
+        raise
+
+@app.get("/health")
+async def health_check():
+    logging.info("🏥 Health check endpoint hit")
+    return {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "environment": os.getenv("ENVIRONMENT", "development")
+    }
+
+@app.get("/webhook/notion/health")
+async def webhook_health():
+    logging.info("🏥 Webhook health check endpoint hit")
+    return {
+        "status": "webhook endpoint healthy",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
 

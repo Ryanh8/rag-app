@@ -18,6 +18,7 @@ from llama_index.readers import download_loader
 from pinecone import (ServerlessSpec, Pinecone)
 import time
 import asyncio
+from notion_loader import NotionDatabaseLoader
 load_dotenv()
 
 class PineconeRAGManager:
@@ -71,24 +72,27 @@ class PineconeRAGManager:
             chunk_overlap=50
         )
 
+        self.notion_namespace = "notion_content"  # Single namespace for all Notion data
+
     def get_namespace(self, chat_id: int) -> str:
         return f"chat_{chat_id}"
 
-    def get_vector_store(self, chat_id: int) -> PineconeVectorStore:
+    def get_vector_store(self) -> PineconeVectorStore:
         return PineconeVectorStore(
             pinecone_index=self.pinecone_index,
-            namespace=self.get_namespace(chat_id)
+            namespace=self.notion_namespace
         )
 
     def get_index(self, chat_id: int) -> Optional[VectorStoreIndex]:
         try:
-            vector_store = self.get_vector_store(chat_id)
+            vector_store = self.get_vector_store()
             storage_context = StorageContext.from_defaults(vector_store=vector_store)
             
             return VectorStoreIndex.from_vector_store(
                 vector_store,
                 storage_context=storage_context,
-                service_context=self.service_context
+                service_context=self.service_context,
+                use_async=True  # Add async support
             )
         except Exception as e:
             self.logger.error(f"Error getting index for chat {chat_id}: {str(e)}")
@@ -96,19 +100,17 @@ class PineconeRAGManager:
 
     async def ingest_document(self, file_path: str, chat_id: int):
         try:
+            start_time = time.perf_counter()
+            
             # Load documents based on file type
             if file_path.lower().endswith('.txt'):
-                # Special handling for text files
                 with open(file_path, 'r', encoding='utf-8') as f:
                     text = f.read()
                 
-                # Create a Document object
                 from llama_index.schema import Document
                 document = Document(text=text)
                 
-                # Create documents with text splitter
                 from llama_index.node_parser import SimpleNodeParser
-                
                 parser = SimpleNodeParser.from_defaults(
                     chunk_size=256,
                     chunk_overlap=50,
@@ -122,15 +124,16 @@ class PineconeRAGManager:
                 vector_store = self.get_vector_store(chat_id)
                 storage_context = StorageContext.from_defaults(vector_store=vector_store)
                 
-                # Create and store the index
-                index = VectorStoreIndex(
-                    nodes,
+                # Create index synchronously since we're in an async context
+                index = VectorStoreIndex.from_documents(
+                    [document],
                     storage_context=storage_context,
-                    service_context=self.service_context
+                    service_context=self.service_context,
+                    show_progress=True
                 )
                 
             else:
-                # Original handling for PDF and DOCX files
+                # Handle other file types
                 if file_path.lower().endswith('.pdf'):
                     PDFReader = download_loader("PDFReader")
                     loader = PDFReader()
@@ -140,23 +143,26 @@ class PineconeRAGManager:
                     loader = DocxReader()
                     documents = loader.load_data(file=file_path)
                 else:
-                    loader = SimpleDirectoryReader(input_files=[file_path])
-                    documents = loader.load_data()
+                    documents = SimpleDirectoryReader(input_files=[file_path]).load_data()
 
-                vector_store = self.get_vector_store(chat_id)
+                vector_store = self.get_vector_store()
                 storage_context = StorageContext.from_defaults(vector_store=vector_store)
                 
+                # Create index synchronously
                 index = VectorStoreIndex.from_documents(
                     documents,
                     storage_context=storage_context,
-                    service_context=self.service_context
+                    service_context=self.service_context,
+                    show_progress=True
                 )
 
-            self.logger.info(f"Successfully ingested document for chat {chat_id}")
+            duration = time.perf_counter() - start_time
+            self.logger.info(f"Index creation took {duration:.2f} seconds for chat {chat_id}")
             
-            # Add 5 second delay after ingestion
-            await asyncio.sleep(5)
-            
+            remaining_time = max(5 - duration, 0)
+            if remaining_time > 0:
+                await asyncio.sleep(remaining_time)
+                
             return index
 
         except Exception as e:
@@ -200,4 +206,67 @@ class PineconeRAGManager:
         except Exception as e:
             self.logger.error(f"Error generating response for chat {chat_id}: {str(e)}")
             return f"An error occurred while generating the response: {str(e)}"
+
+    async def ingest_notion_database(self, chat_id: int):
+        try:
+            start_time = time.perf_counter()
+            
+            # Load documents from Notion
+            notion_loader = NotionDatabaseLoader()
+            documents = await notion_loader.load_documents()
+            
+            # Create vector store and index using notion_namespace
+            vector_store = self.get_vector_store()  # This now uses notion_namespace
+            storage_context = StorageContext.from_defaults(vector_store=vector_store)
+            
+            index = VectorStoreIndex(
+                documents,
+                storage_context=storage_context,
+                service_context=self.service_context,
+                # use_async=True
+            )
+
+            duration = time.perf_counter() - start_time
+            self.logger.info(f"Notion database ingestion took {duration:.2f} seconds for chat {chat_id}")
+            
+            remaining_time = max(5 - duration, 0)
+            if remaining_time > 0:
+                await asyncio.sleep(remaining_time)
+                
+            return index
+
+        except Exception as e:
+            self.logger.error(f"Error ingesting Notion database for chat {chat_id}: {str(e)}")
+            raise
+
+    async def update_notion_page(self, page_id: str):
+        try:
+            namespace = f"notion_page_{page_id}"
+            logging.info(f"🔄 Updating/creating namespace: {namespace}")
+            
+            # Load updated page content
+            notion_loader = NotionDatabaseLoader()
+            updated_document = await notion_loader.load_page(page_id)
+            
+            # Create new vectors in page-specific namespace
+            vector_store = PineconeVectorStore(
+                pinecone_index=self.pinecone_index,
+                namespace=namespace
+            )
+            storage_context = StorageContext.from_defaults(vector_store=vector_store)
+            
+            # Create index synchronously to avoid event loop issues
+            index = VectorStoreIndex.from_documents(
+                [updated_document],
+                storage_context=storage_context,
+                service_context=self.service_context,
+                # show_progress=True
+            )
+            
+            self.logger.info(f"✅ Updated vectors for Notion page {page_id} in namespace {namespace}")
+            return index
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error updating Notion content: {str(e)}")
+            raise
 
